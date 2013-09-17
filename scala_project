@@ -1,0 +1,163 @@
+#!/bin/bash
+
+if [ -n "$1" ]; then
+	project_name=$1
+else
+	read -p "Project name: " project_name
+fi
+
+mkdir $project_name
+cd $project_name
+
+# Basic build
+mkdir project
+mkdir -p src/main/{resources,scala,webapp}
+mkdir -p src/test/{resources,scala}
+touch project/plugins.sbt
+
+read -p "Organization name: " organization
+read -p "Sub-organization? [Yn] " sub_organization
+
+if [ $sub_organization == "Y" ] || [ $sub_organization == "y" ]; then
+	read -p "Sub-organization name: " sub_org_name
+	mkdir -p src/main/scala/$organization/$sub_org_name
+else
+	mkdir src/main/scala/$organization
+fi
+
+read -p "Project version: " project_version
+read -p "Scala version: " scala_version
+read -p "SBT version: " sbt_version
+
+# Java directories?
+read -p "Java files too? [Yn] " java_files
+
+if [ $java_files == "Y" ] || [ $java_files == "y" ]; then
+  mkdir src/main/java
+  mkdir src/test/java
+else
+  echo "No java directories created"
+fi
+
+# .conf files?
+read -p "application.conf file? [Yn] " app_conf_file
+
+if [ $app_conf_file == "Y" ] || [ $app_conf_file == "y" ]; then
+  touch src/main/resources/application.conf
+else
+  echo "No application.conf created"
+fi
+
+read -p "reference.conf file? [Yn] " ref_conf_file
+if [ $ref_conf_file == "Y" ] || [ $ref_conf_file == "y" ]; then
+  touch src/main/resources/reference.conf
+else
+  echo "No reference.conf created"
+fi
+
+# Build.scala or build.sbt?
+
+# Just build.sbt
+
+read -p "Build.scala? [Yn] " build
+
+# Just build.sbt
+echo "name := \"$project_name\"
+
+version := \"$project_version\"
+
+organization := \"$organization\"
+
+scalaVersion := \"$scala_version\"
+
+sbtVersion := \"$sbt_version\"
+
+resolvers ++= Seq(
+
+)
+
+libraryDependencies ++= Seq(
+
+)" > build.sbt
+
+# project/Build.scala as well
+
+if [ $build == "Y" ] || [ $build == "y" ]; then
+  echo "import sbt._
+import keys._
+
+object BuildSettings extends Build {
+  val buildOrganization = \"$organization\"
+  val buildVersion      = \"$project_version\"
+  val buildScalaVersion = \"$scala_version\"
+
+  val buildSettings = Defaults.defaultSettings ++ Seq (
+    organization      := buildOrganization,
+    version           := buildVersion,
+    buildScalaVersion := buildScalaVersion,
+    shellPrompt       := ShellPrompt.buildShellPrompt
+  )
+}
+
+object ShellPrompt {
+  object devnull extends ProcessLogger {
+    def info (s: => String) {}
+    def error (s: => String) { }
+    def buffer[T] (f: => T): T = f
+  }
+  def currBranch = (
+    (\"git status -sb\" lines_! devnull headOption)
+      getOrElse \"-\" stripPrefix \"## \"
+  )
+
+  val buildShellPrompt = {
+    (state: State) => {
+      val currProject = Project.extract (state).currentProject.id
+      \"%s:%s:%s> \".format (
+        currProject, currBranch, BuildSettings.buildVersion
+      )
+    }
+  }
+}
+
+object Resolvers {
+
+}
+
+object Dependencies {
+
+}
+
+object "$project_name"Build extends Build {
+  import Resolvers._
+  import Dependencies._
+  import BuildSettings._
+
+  lazy val mainProject = Project (
+    \"$project_name\",
+    file(\".\"),
+    settings = buildSettings 
+  )
+}" > project/Build.scala
+fi
+
+# build.properties file
+echo "sbt.version=$sbt_version" >> project/build.properties
+
+# gitignore
+echo "target
+project/{project,target}
+" >> .gitignore
+
+# README
+echo "$project_name
+===========
+" > README.md
+
+git init
+git add .
+git commit -m "first commit"
+
+# Final CLI output
+echo ""
+echo "Your project folder is ready!"
